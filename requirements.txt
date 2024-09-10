@@ -1,0 +1,5 @@
+argparse               # Command-line argument parsing (Standard Library)
+requests               # For making HTTP requests to the API
+argcomplete            # Optional: For tab completion support
+tabulate               # Displays data in table format
+kubernetes             # For making Kubernetes API requests
