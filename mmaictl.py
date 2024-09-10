@@ -73,8 +73,10 @@ def main():
     if hasattr(args, 'func'):
         client = APIClient(base_url=args.api_url, token=args.token)
         try:
-            result = args.func(args, client)
-            print(result)  # Output the result in a formatted way
+            # result = args.func(args, client)
+            # print(result)  # Output the result in a formatted way
+            # Let the sub command print any output and error(s). Avoids printing "None" when the sub command returns.
+            args.func(args, client)
         except Exception as e:
             logging.error(f"Error: {str(e)}")
             exit(1)
