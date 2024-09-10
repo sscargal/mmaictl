@@ -44,7 +44,7 @@ def list_nodegroups(args, client):
     """Lists all node groups in a cluster."""
     try:
         cluster_uid = get_cluster_uid(client, args.cluster)
-        nodegroups = client.get(f"clusters/{cluster_uid}/nodegroups")
+        nodegroups = client.get(f"clusters/{cluster_uid}/nodeGroups")
 
         # Apply filter if provided
         if args.filter:
