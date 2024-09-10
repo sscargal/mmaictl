@@ -4,7 +4,11 @@ from utils import flatten_json, get_cluster_uid, filter_json
 
 def setup_parser(subparsers):
     """Sets up the argparse subcommands for billing."""
-    billing_parser = subparsers.add_parser('billing', help='Get billing details for departments')
+    billing_parser = subparsers.add_parser(
+        'billing', 
+        description='Manage Billing in the MMAI Platform.',
+        help='Get billing details for departments'
+    )
     billing_subparsers = billing_parser.add_subparsers(dest='action', help='Action to perform')
 
     # billing list

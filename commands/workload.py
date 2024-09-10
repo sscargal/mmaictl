@@ -4,7 +4,11 @@ from utils import flatten_json, get_cluster_uid, filter_json
 
 def setup_parser(subparsers):
     """Sets up the argparse subcommands for workloads."""
-    workload_parser = subparsers.add_parser('workload', help='Manage workloads')
+    workload_parser = subparsers.add_parser(
+        'workload', 
+        description='Manage Workloads in the MMAI Platform.',
+        help='Manage workloads'
+    )
     workload_subparsers = workload_parser.add_subparsers(dest='action', help='Action to perform')
 
     # workload list

@@ -4,7 +4,11 @@ from utils import flatten_json
 
 def setup_parser(subparsers):
     """Sets up the argparse subcommands for clusters."""
-    cluster_parser = subparsers.add_parser('cluster', help='Manage clusters')
+    cluster_parser = subparsers.add_parser(
+        'cluster', 
+        description='Manage Clusters in the MMAI Platform',
+        help='Manage clusters'
+    )
     cluster_subparsers = cluster_parser.add_subparsers(dest='action', help='Action to perform')
     
     # cluster add

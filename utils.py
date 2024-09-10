@@ -1,14 +1,27 @@
 import logging
 import json
 
-def setup_logging(verbose, quiet):
-    """Set up logging configuration based on verbosity and quiet mode."""
-    if quiet:
-        logging.basicConfig(level=logging.CRITICAL)
-    elif verbose:
-        logging.basicConfig(level=logging.DEBUG)
+def setup_logging(verbosity):
+    """
+    Sets up logging based on the verbosity level.
+    Args:
+        verbosity (int): The verbosity level. 0 means WARNING, 1 means INFO, 2 means DEBUG, 3 means NOTSET (all messages).
+    """
+    # Map verbosity to logging levels
+    if verbosity == 0:
+        log_level = logging.WARNING
+    elif verbosity == 1:
+        log_level = logging.INFO
+    elif verbosity == 2:
+        log_level = logging.DEBUG
     else:
-        logging.basicConfig(level=logging.INFO)
+        log_level = logging.NOTSET
+
+    logging.basicConfig(
+        level=log_level,
+        format="%(asctime)s - %(levelname)s - %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S"
+    )
 
 def output_formatter(data, args):
     if isinstance(data, dict):

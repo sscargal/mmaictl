@@ -4,7 +4,11 @@ from utils import flatten_json, get_cluster_uid, filter_json
 
 def setup_parser(subparsers):
     """Sets up the argparse subcommands for projects."""
-    project_parser = subparsers.add_parser('project', help='Manage projects')
+    project_parser = subparsers.add_parser(
+        'project', 
+        description='Manage Projects in the MMAI Platform.',
+        help='Manage projects'
+    )
     project_subparsers = project_parser.add_subparsers(dest='action', help='Action to perform')
 
     # project add
@@ -48,34 +52,85 @@ def add_project(args, client):
     return result
 
 def list_projects(args, client):
-    """Lists all projects in a cluster."""
+    """Lists all projects in a cluster or from all clusters if no cluster is specified."""
     try:
-        cluster_uid = get_cluster_uid(client, args.cluster)
-        projects = client.get(f"clusters/{cluster_uid}/projects")
+        # If no cluster is specified, fetch all clusters
+        if not args.cluster:
+            clusters = client.get("clusters")
+            if not clusters or not isinstance(clusters, list):
+                logging.error("No clusters found.")
+                return None
+        else:
+            # Fetch only the specified cluster
+            cluster_uid = get_cluster_uid(client, args.cluster)
+            clusters = [{"name": args.cluster, "uid": cluster_uid}]
 
-        # Apply filter if provided
-        if args.filter:
-            filters = args.filter.split(',')
-            projects = filter_json(projects, filters)
+        all_projects = []
 
+        for cluster in clusters:
+            cluster_name = cluster.get('name')
+            cluster_uid = cluster.get('uid')
+
+            # Fetch projects for this cluster
+            projects = client.get(f"clusters/{cluster_uid}/projects")
+            if not projects:
+                logging.warning(f"No projects found for cluster {cluster_name}.")
+                continue
+
+            # Apply filter if provided
+            if args.filter:
+                filters = args.filter.split(',')
+                projects = filter_json(projects, filters)
+
+            # Flatten each project and prefix with the cluster name
+            for i, project in enumerate(projects):
+                flattened_project = flatten_json(project, parent_key=f"cluster[{cluster_name}].project[{i}]")
+                all_projects.append(flattened_project)
+
+        # If JSON output is requested
         if args.output == 'json':
-            return json.dumps(projects, indent=4)
+            return json.dumps(all_projects, indent=4)
 
-        flattened_projects = []
-        for i, project in enumerate(projects):
-            flattened_project = flatten_json(project, parent_key=f'project[{i}]')
-            flattened_projects.append(flattened_project)
-
+        # Prepare text output
         output_lines = []
-        for flattened_project in flattened_projects:
-            for key, value in flattened_project.items():
+        for project in all_projects:
+            for key, value in project.items():
                 output_lines.append(f"{key}: {value}")
 
         return "\n".join(output_lines)
 
     except Exception as e:
-        return f"Error: {str(e)}"
+        logging.error(f"Failed to fetch projects: {e}")
+        return None
+
     
+def list_projects_by_cluster_uid(cluster_uid, client):
+    """
+    Fetches the list of projects for a given cluster UID using the provided API client.
+    
+    Args:
+        cluster_uid (str): The UID of the cluster.
+        client: The API client used for making requests.
+    
+    Returns:
+        list or str: A list of projects or an error message if the request fails.
+    """
+    try:
+        logging.info(f"Fetching projects for cluster UID: {cluster_uid}")
+        projects = client.get(f"clusters/{cluster_uid}/projects")
+
+        # Ensure the response is a list (the expected type)
+        if not isinstance(projects, list):
+            logging.error(f"Unexpected response type: {type(projects)}. Expected list.")
+            return None
+
+        return projects
+
+    except Exception as e:
+        logging.error(f"Failed to fetch projects for cluster {cluster_uid}: {e}")
+        return None
+
+
 def get_project(args, client):
     """Retrieves a specific project by name."""
     project = client.get(f"projects/{args.name}")

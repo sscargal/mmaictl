@@ -1,10 +1,18 @@
 import logging
 from kubernetes import client, config
 from kubernetes.config.config_exception import ConfigException
+from .department import list_departments, list_departments_by_cluster_uid
+from .nodegroup import list_nodegroups, list_nodegroups_by_cluster_uid
+from .project import list_projects, list_projects_by_cluster_uid
+import logging
 
 def setup_parser(subparsers):
     """Sets up the argparse subcommands for displaying topologies."""
-    topology_parser = subparsers.add_parser('topology', help='Display the environment topology (MMAI or Kubernetes)')
+    topology_parser = subparsers.add_parser(
+        'topology', 
+        description='Display the MMAI or Kubernetes topology.',
+        help='Display the environment topology (MMAI or Kubernetes)'
+    )
     
     # Options for selecting the type of topology
     topology_parser.add_argument('--k8s', action='store_true', help='Show Kubernetes cluster topology')
@@ -157,11 +165,11 @@ def k8s_topology(args):
 
 
 # MMAI Topology Function
-def fetch_environment_data(client):
+def fetch_mmai_topology(client):
     """
     Fetches the MMAI topology, including clusters, node groups, nodes, hardware, departments, projects, and workloads.
-    Handles errors when endpoints are not found or other exceptions occur.
-
+    Uses the existing list functions to obtain information and build the tree structure.
+    
     Returns:
         dict: A structured dictionary representing the MMAI topology or an error message.
     """
@@ -170,6 +178,7 @@ def fetch_environment_data(client):
     try:
         # Fetch clusters
         clusters = client.get("clusters")
+        logging.info(f"Clusters fetched: {clusters}")
 
         if not isinstance(clusters, list) or len(clusters) == 0:
             logging.error("No clusters found.")
@@ -181,119 +190,87 @@ def fetch_environment_data(client):
         topology_data['Clusters'] = []
 
         for cluster in clusters:
-            cluster_data = {'Cluster': cluster['name'], 'NodeGroups': [], 'Departments': []}
+            if 'uid' in cluster and 'name' in cluster:
+                cluster_uid = cluster['uid']
+                cluster_name = cluster['name']
+                logging.info(f"Processing cluster {cluster_name} with UID {cluster_uid}")
+            else:
+                logging.error(f"Cluster data missing 'uid' or 'name': {cluster}")
+                continue
 
-            try:
-                # Fetch node groups
-                nodegroups = client.get(f"clusters/{cluster['uid']}/nodeGroups")
-                if not isinstance(nodegroups, list):
-                    logging.error(f"Failed to fetch node groups for cluster {cluster['uid']}.")
-                    return {
-                        "error": f"Failed to fetch node groups for cluster {cluster['uid']}.",
-                        "suggestion": "Please verify that the node groups endpoint is functioning correctly."
-                    }
+            cluster_data = {'Cluster': cluster_name, 'NodeGroups': [], 'Departments': [], 'Projects': []}
 
-            except Exception as e:
-                logging.error(f"Error fetching node groups for cluster {cluster['uid']}: {e}")
+            # Fetch node groups using list_nodegroups_by_cluster_uid
+            nodegroups = list_nodegroups_by_cluster_uid(cluster_uid, client)
+            logging.info(f"Node groups fetched for cluster {cluster_uid}: {nodegroups}")
+            
+            if not nodegroups:
+                logging.error(f"Failed to fetch node groups for cluster {cluster_uid}.")
                 return {
-                    "error": f"Error fetching node groups for cluster {cluster['uid']}.",
-                    "suggestion": f"An error occurred while fetching node groups: {str(e)}"
+                    "error": f"Failed to fetch node groups for cluster {cluster_uid}.",
+                    "suggestion": "Please verify that the node groups endpoint is functioning correctly."
                 }
 
             for nodegroup in nodegroups:
-                nodegroup_data = {'NodeGroup': nodegroup['name'], 'Nodes': []}
+                if not isinstance(nodegroup, dict):
+                    logging.error(f"Expected dictionary for node group, got {type(nodegroup)}: {nodegroup}")
+                    continue
 
-                try:
-                    # Fetch nodes for each node group
-                    nodes = client.get(f"nodegroups/{nodegroup['uid']}/nodes")
-                    if not isinstance(nodes, list):
-                        logging.error(f"Failed to fetch nodes for node group {nodegroup['uid']}.")
-                        return {
-                            "error": f"Failed to fetch nodes for node group {nodegroup['uid']}.",
-                            "suggestion": "Please verify that the nodes endpoint is functioning correctly."
-                        }
-
-                except Exception as e:
-                    logging.error(f"Error fetching nodes for node group {nodegroup['uid']}: {e}")
-                    return {
-                        "error": f"Error fetching nodes for node group {nodegroup['uid']}.",
-                        "suggestion": f"An error occurred while fetching nodes: {str(e)}"
-                    }
-
-                for node in nodes:
-                    node_data = {
-                        'Node': node['name'],
-                        'CPU': f"{node['cpu']['cores']} cores",
-                        'Memory': f"{node['memory']['total']} GB",
-                        'Network': node['network'],
-                        'Storage': node['storage'],
-                        'GPUs': node.get('gpus', "None")
-                    }
-                    nodegroup_data['Nodes'].append(node_data)
-
+                logging.info(f"Processing node group {nodegroup['name']}")
+                nodegroup_data = {
+                    'NodeGroup': nodegroup['name'],
+                    'Nodes': nodegroup.get('nodes', []),
+                    'Resources': nodegroup.get('resources', {}),
+                    'Reserved': nodegroup.get('reserved', {})
+                }
                 cluster_data['NodeGroups'].append(nodegroup_data)
 
-            # Fetch departments
-            try:
-                departments = client.get(f"clusters/{cluster['uid']}/departments")
-                if not isinstance(departments, list):
-                    logging.error(f"Failed to fetch departments for cluster {cluster['uid']}.")
-                    return {
-                        "error": f"Failed to fetch departments for cluster {cluster['uid']}.",
-                        "suggestion": "Please verify that the departments endpoint is functioning correctly."
-                    }
-
-            except Exception as e:
-                logging.error(f"Error fetching departments for cluster {cluster['uid']}: {e}")
+            # Fetch departments using list_departments_by_cluster_uid
+            departments = list_departments_by_cluster_uid(cluster_uid, client)
+            logging.info(f"Departments fetched for cluster {cluster_uid}: {departments}")
+            
+            if not departments:
+                logging.error(f"Failed to fetch departments for cluster {cluster_uid}.")
                 return {
-                    "error": f"Error fetching departments for cluster {cluster['uid']}.",
-                    "suggestion": f"An error occurred while fetching departments: {str(e)}"
+                    "error": f"Failed to fetch departments for cluster {cluster_uid}.",
+                    "suggestion": "Please verify that the departments endpoint is functioning correctly."
                 }
 
             for department in departments:
+                if not isinstance(department, dict):
+                    logging.error(f"Expected dictionary for department, got {type(department)}: {department}")
+                    continue
+
+                logging.info(f"Processing department {department['name']}")
                 department_data = {'Department': department['name'], 'Projects': []}
 
-                # Fetch projects for each department
-                try:
-                    projects = client.get(f"departments/{department['uid']}/projects")
-                    if not isinstance(projects, list):
-                        logging.error(f"Failed to fetch projects for department {department['uid']}.")
-                        return {
-                            "error": f"Failed to fetch projects for department {department['uid']}.",
-                            "suggestion": "Please verify that the projects endpoint is functioning correctly."
-                        }
-
-                except Exception as e:
-                    logging.error(f"Error fetching projects for department {department['uid']}: {e}")
+                # Fetch projects for the entire cluster using list_projects_by_cluster_uid
+                projects = list_projects_by_cluster_uid(cluster_uid, client)
+                logging.info(f"Projects fetched for cluster {cluster_uid}: {projects}")
+                
+                if not projects:
+                    logging.error(f"Failed to fetch projects for cluster {cluster_uid}.")
                     return {
-                        "error": f"Error fetching projects for department {department['uid']}.",
-                        "suggestion": f"An error occurred while fetching projects: {str(e)}"
+                        "error": f"Failed to fetch projects for cluster {cluster_uid}.",
+                        "suggestion": "Please verify that the projects endpoint is functioning correctly."
                     }
 
                 for project in projects:
-                    project_data = {'Project': project['name'], 'Workloads': []}
+                    if not isinstance(project, dict):
+                        logging.error(f"Expected dictionary for project, got {type(project)}: {project}")
+                        continue
 
-                    # Fetch workloads for each project
-                    try:
-                        workloads = client.get(f"projects/{project['uid']}/workloads")
-                        if not isinstance(workloads, list):
-                            logging.error(f"Failed to fetch workloads for project {project['uid']}.")
-                            return {
-                                "error": f"Failed to fetch workloads for project {project['uid']}.",
-                                "suggestion": "Please verify that the workloads endpoint is functioning correctly."
-                            }
-
-                    except Exception as e:
-                        logging.error(f"Error fetching workloads for project {project['uid']}: {e}")
-                        return {
-                            "error": f"Error fetching workloads for project {project['uid']}.",
-                            "suggestion": f"An error occurred while fetching workloads: {str(e)}"
-                        }
-
-                    for workload in workloads:
-                        project_data['Workloads'].append({'Workload': workload['name']})
-
+                    logging.info(f"Processing project {project['name']}")
+                    project_data = {
+                        'Project': project['name'],
+                        'PriorityClass': project['priorityClass'],
+                        'Reservations': project['reservations'],
+                        'UsedQuotas': project['usedQuotas'],
+                        'NumberOfAdmittedWorkloads': project['numberOfAdmittedWorkloads'],
+                        'NumberOfPendingWorkloads': project['numberOfPendingWorkloads'],
+                    }
                     department_data['Projects'].append(project_data)
+                
                 cluster_data['Departments'].append(department_data)
 
             topology_data['Clusters'].append(cluster_data)
@@ -308,16 +285,86 @@ def fetch_environment_data(client):
             "suggestion": f"An unexpected error occurred: {str(e)}. Please check your environment and try again."
         }
 
+def print_topology_data(topology_data):
+    """
+    Prints the fetched topology data as a tree structure with proper indentation, including node resource details.
+    
+    Args:
+        topology_data (dict): A dictionary representing the MMAI topology.
+    """
+    try:
+        print("MMAI Topology:")
+        if 'Clusters' not in topology_data or not isinstance(topology_data['Clusters'], list):
+            logging.error("Invalid topology data: 'Clusters' key missing or not a list")
+            return
+
+        for cluster in topology_data['Clusters']:
+            if not isinstance(cluster, dict):
+                logging.error(f"Expected dictionary for cluster, got {type(cluster)}: {cluster}")
+                continue
+
+            print(f"Clusters:")
+            print(f"│   Cluster: {cluster.get('Cluster', 'N/A')}")
+
+            # Process NodeGroups with indentation
+            if 'NodeGroups' in cluster and isinstance(cluster['NodeGroups'], list):
+                print("│   │   NodeGroups:")
+                for nodegroup in cluster['NodeGroups']:
+                    if isinstance(nodegroup, dict):
+                        print(f"│   │   │   NodeGroup: {nodegroup.get('NodeGroup', 'N/A')}")
+                        if 'Nodes' in nodegroup and isinstance(nodegroup['Nodes'], list):
+                            print("│   │   │   │   Nodes:")
+                            for node in nodegroup['Nodes']:
+                                print(f"│   │   │   │   │   {node}")
+                                
+                                # Assuming the resource information is available in the node structure
+                                # Display CPUs, Memory, and GPUs
+                                cpu_count = nodegroup.get('Resources', {}).get('cpu', 'Unknown')
+                                memory_capacity = nodegroup.get('Resources', {}).get('memory', 'Unknown')
+                                gpus = nodegroup.get('Resources', {}).get('gpu', {})
+                                
+                                # Assume GPU details (e.g., model) are in the gpu dictionary
+                                gpu_count = gpus.get('nvidia.com/gpu', '0')
+                                
+                                # Display node resources (CPUs, Memory, GPUs)
+                                print(f"│   │   │   │   │   │   CPUs: {cpu_count}")
+                                print(f"│   │   │   │   │   │   Memory: {memory_capacity} GiB")
+                                print(f"│   │   │   │   │   │   GPUs: {gpu_count}")
+                    else:
+                        logging.error(f"Expected dictionary for nodegroup, got {type(nodegroup)}: {nodegroup}")
+            else:
+                logging.error("NodeGroups missing or invalid in cluster data")
+
+            # Process Departments with indentation
+            if 'Departments' in cluster and isinstance(cluster['Departments'], list):
+                print("│   │   Departments:")
+                for department in cluster['Departments']:
+                    if isinstance(department, dict):
+                        print(f"│   │   │   Department: {department.get('Department', 'N/A')}")
+                        if 'Projects' in department and isinstance(department['Projects'], list):
+                            print("│   │   │   │   Projects:")
+                            for project in department['Projects']:
+                                if isinstance(project, dict):
+                                    print(f"│   │   │   │   │   Project: {project.get('Project', 'N/A')}")
+                                else:
+                                    logging.error(f"Expected dictionary for project, got {type(project)}: {project}")
+                    else:
+                        logging.error(f"Expected dictionary for department, got {type(department)}: {department}")
+            else:
+                logging.error("Departments missing or invalid in cluster data")
+
+    except Exception as e:
+        logging.error(f"Error fetching MMAI topology: {e}")
+
 
 def mmai_topology(args, client):
     """Displays the MMAI hardware/software topology in a tree view format."""
     try:
         # Fetch the MMAI topology data
-        topology_data = fetch_environment_data(client)
+        topology_data = fetch_mmai_topology(client)
 
         # Print the tree starting from the cluster
-        print("MMAI Topology:")
-        print_tree(topology_data)
+        print_topology_data(topology_data)
 
     except Exception as e:
         logging.error(f"Error fetching MMAI topology: {str(e)}")
