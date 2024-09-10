@@ -18,7 +18,7 @@ def list_billing(args, client):
     """Lists billing details for all departments in a cluster."""
     try:
         cluster_uid = get_cluster_uid(client, args.cluster)
-        billing = client.get(f"clusters/{cluster_uid}/billing")
+        billing = client.get(f"billing/{cluster_uid}")
 
         # Apply filter if provided
         if args.filter:
