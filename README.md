@@ -1,10 +1,6 @@
-Here’s a sample `README.md` file for your project that includes a general introduction, installation instructions, and usage examples for all the subcommands:
+# MemVerge Memory Machine AI (MMAI) Command-Line Tool
 
----
-
-# MMAI Command-Line Tool
-
-MMAI is a command-line tool to manage platform resources like clusters, departments, node groups, projects, and workloads. It provides a convenient interface to interact with the MMAI API and perform operations such as listing, updating, and deleting platform resources.
+MMAI is a command-line tool to manage platform resources like clusters, departments, node groups, projects, workloads, and nodes. It provides a convenient interface to interact with the MMAI API and perform operations such as listing, updating, and deleting platform resources.
 
 ## Table of Contents
 - [Installation](#installation)
@@ -93,25 +89,30 @@ The `cluster` subcommand manages clusters in the MMAI platform.
 
 #### Actions:
 
-1. **List all clusters**:
+1. **List all clusters** (Shows only cluster names by default):
 ```bash
 ./mmaictl.py cluster list
 ```
 
-2. **Add a new cluster**:
+- Use `-o dot` for dot notation output.
+- Use `-o json` for JSON output.
+
+2. **Get details of one or more clusters**:
 ```bash
-./mmaictl.py cluster add --name <cluster-name>
+./mmaictl.py cluster get --name <cluster-name> --name <another-cluster-name>
 ```
 
-3. **Get a cluster by UID**:
+3. **Add a new cluster**:
 ```bash
-./mmaictl.py cluster get --uid <cluster-uid>
+./mmaictl.py cluster add --name <cluster-name>
 ```
 
 4. **Update a cluster property**:
 ```bash
 ./mmaictl.py cluster set <cluster-name> <property=value>
-# Example:
+```
+Example:
+```bash
 ./mmaictl.py cluster set my-cluster name=newClusterName
 ```
 
@@ -157,14 +158,17 @@ The `nodegroup` subcommand manages node groups in a cluster.
 ./mmaictl.py nodegroup list --cluster <cluster-name>
 ```
 
-2. **Add a new node group**:
+- Use `-o dot` for dot notation output.
+- Use `-o json` for JSON output.
+
+2. **Get details of one or more node groups**:
 ```bash
-./mmaictl.py nodegroup add --cluster <cluster-name> --name <nodegroup-name>
+./mmaictl.py nodegroup get --name <nodegroup-name> --name <another-nodegroup-name>
 ```
 
-3. **Get a node group by name**:
+3. **Add a new node group**:
 ```bash
-./mmaictl.py nodegroup get --cluster <cluster-name> --name <nodegroup-name>
+./mmaictl.py nodegroup add --cluster <cluster-name> --name <nodegroup-name>
 ```
 
 4. **Delete a node group by name**:
@@ -183,17 +187,25 @@ The `project` subcommand manages projects in a cluster.
 ./mmaictl.py project list --cluster <cluster-name>
 ```
 
-2. **Add a new project**:
+- Use `-o dot` for dot notation output.
+- Use `-o json` for JSON output.
+
+2. **Get details of one or more projects**:
+```bash
+./mmaictl.py project get --name <project-name> --name <another-project-name>
+```
+
+3. **Add a new project**:
 ```bash
 ./mmaictl.py project add --cluster <cluster-name> --department <department-name> --name <project-name>
 ```
 
-3. **Get a project by name**:
+4. **Update a project by name**:
 ```bash
-./mmaictl.py project get --cluster <cluster-name> --name <project-name>
+./mmaictl.py project update --name <project-name> --new-name <new-name> --description <new-description>
 ```
 
-4. **Delete a project by name**:
+5. **Delete a project by name**:
 ```bash
 ./mmaictl.py project delete --cluster <cluster-name> --name <project-name>
 ```
@@ -204,19 +216,27 @@ The `workload` subcommand manages workloads in a project.
 
 #### Actions:
 
-1. **List all workloads in a project**:
+1. **List all workloads in a cluster**:
 ```bash
-./mmaictl.py workload list --cluster <cluster-name> --project <project-name>
+./mmaictl.py workload list --cluster <cluster-name>
 ```
 
-2. **Resume a workload**:
+- Use `-o dot` for dot notation output.
+- Use `-o json` for JSON output.
+
+2. **Get details of one or more workloads**:
 ```bash
-./mmaictl.py workload resume --cluster <cluster-name> --project <project-name> --workload <workload-id>
+./mmaictl.py workload get --name <workload-name> --name <another-workload-name>
 ```
 
-3. **Suspend a workload**:
+3. **Resume a workload**:
 ```bash
-./mmaictl.py workload suspend --cluster <cluster-name> --project <project-name> --workload <workload-id>
+./mmaictl.py workload resume --project <project-name> --name <workload-name>
+```
+
+4. **Suspend a workload**:
+```bash
+./mmaictl.py workload suspend --project <project-name> --name <workload-name>
 ```
 
 ### Billing Subcommand
@@ -255,6 +275,14 @@ The `node` subcommand manages nodes in a cluster.
 1. **List all nodes in a cluster or all clusters**:
 ```bash
 ./mmaictl.py node list --cluster <cluster-name>  # Or omit --cluster to list nodes from all clusters
+```
+
+- Use `-o dot` for dot notation output.
+- Use `-o json` for JSON output.
+
+2. **Get details of one or more nodes**:
+```bash
+./mmaictl.py node get --name <node-name> --name <another-node-name>
 ```
 
 ---
