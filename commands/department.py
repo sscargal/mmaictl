@@ -90,7 +90,7 @@ def list_departments(args, client):
             for key, value in department.items():
                 output_lines.append(f"{key}: {value}")
 
-        return "\n".join(output_lines)
+        print("\n".join(output_lines))
 
     except Exception as e:
         logging.error(f"Failed to fetch departments: {e}")

@@ -41,7 +41,7 @@ def main():
     parser = CustomArgumentParser(description="mmaictl: Command-line utility to manage platform resources like clusters, departments, and node groups")
     
     # Global options
-    parser.add_argument('--api-url', default='http://18.191.234.20:32323/v1', help='Base URL for the API')
+    parser.add_argument('--api-url', default='http://localhost:32323/v1', help='Base URL for the API')
     parser.add_argument('--token', help='Authentication token')
     parser.add_argument('-v', '--verbose', action='count', default=0, help='Increase verbosity (can be used multiple times)')
     parser.add_argument('--quiet', action='store_true', help='Enable quiet mode (minimal output)')
@@ -56,7 +56,7 @@ def main():
     nodegroup.setup_parser(subparsers)
     project.setup_parser(subparsers)
     workload.setup_parser(subparsers)
-    billing.setup_parser(subparsers)
+    # billing.setup_parser(subparsers) // Not implemented yet in the API
     topology.setup_parser(subparsers)
     nodes.setup_parser(subparsers)
 

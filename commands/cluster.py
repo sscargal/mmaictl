@@ -2,7 +2,6 @@ import json
 import logging
 import requests
 from utils import flatten_json, get_cluster_uid, filter_json
-import textwrap
 
 def setup_parser(subparsers):
     """Sets up the argparse subcommands for clusters."""
@@ -20,21 +19,22 @@ def setup_parser(subparsers):
     add_parser.set_defaults(func=add_cluster)
 
     # cluster list
-    list_parser = cluster_subparsers.add_parser('list', help='List all clusters')
+    list_parser = cluster_subparsers.add_parser('list', help='List the names of all clusters')
     list_parser.add_argument('--output', '-o', choices=['text', 'json'], default='text', help='Output format (default: text)')
     list_parser.set_defaults(func=list_clusters)
 
-    # cluster get
-    get_parser = cluster_subparsers.add_parser('get', help='Get a cluster by UID')
-    get_parser.add_argument('uid', help='UID of the cluster')
-    get_parser.set_defaults(func=get_cluster)
+    # cluster get (show properties)
+    get_parser = cluster_subparsers.add_parser('get', help='Get all properties of one or more clusters')
+    get_parser.add_argument('--name', '-n', nargs='+', help='List of cluster names to show')
+    get_parser.add_argument('--output', '-o', choices=['text', 'json'], default='text', help='Output format (default: text)')
+    get_parser.set_defaults(func=get_clusters)
 
     # cluster delete
     delete_parser = cluster_subparsers.add_parser('delete', help='Delete a cluster by UID')
     delete_parser.add_argument('uid', help='UID of the cluster')
     delete_parser.set_defaults(func=delete_cluster)
 
-    # cluster set property
+    # cluster set (set/modify property)
     set_parser = cluster_subparsers.add_parser('set', help='Update a cluster property')
     set_parser.add_argument('cluster', help='The name of the cluster to update')
     set_parser.add_argument('properties', nargs='+', help='The property to update in the format property=value (e.g., name=newClusterName)')
@@ -51,13 +51,41 @@ def add_cluster(args, client):
     return result
 
 def list_clusters(args, client):
-    """Lists all clusters."""
+    """Lists the names of all clusters."""
     try:
         clusters = client.get("clusters")
 
         if args.output == 'json':
-            # Output the data as JSON
-            return json.dumps(clusters, indent=4)
+            # Output only the names as JSON
+            cluster_names = [cluster['name'] for cluster in clusters]
+            print(json.dumps(cluster_names, indent=4))
+            return
+
+        # Default output: list of cluster names
+        cluster_names = [cluster['name'] for cluster in clusters]
+        print("\n".join(cluster_names))
+
+    except Exception as e:
+        logging.error(f"Error: {str(e)}")
+        print(f"Error: {str(e)}")
+
+def get_clusters(args, client):
+    """Gets one or more clusters' properties."""
+    try:
+        clusters = client.get("clusters")
+
+        # If --name is provided, filter clusters by the given names
+        if args.name:
+            clusters = [cluster for cluster in clusters if cluster['name'] in args.name]
+
+        if not clusters:
+            print("No matching clusters found.")
+            return
+
+        if args.output == 'json':
+            # Output the filtered data as JSON
+            print(json.dumps(clusters, indent=4))
+            return
 
         # Default output: Flattened dot notation for text format
         flattened_clusters = []
@@ -71,11 +99,12 @@ def list_clusters(args, client):
             for key, value in flattened_cluster.items():
                 output_lines.append(f"{key}: {value}")
         
-        return "\n".join(output_lines)
+        print("\n".join(output_lines))
 
     except Exception as e:
         logging.error(f"Error: {str(e)}")
-        return f"Error: {str(e)}"
+        print(f"Error: {str(e)}")
+
 
 def get_cluster(args, client):
     """Retrieves a specific cluster by UID."""

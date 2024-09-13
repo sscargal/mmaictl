@@ -198,7 +198,7 @@ def fetch_mmai_topology(client):
                 logging.error(f"Cluster data missing 'uid' or 'name': {cluster}")
                 continue
 
-            cluster_data = {'Cluster': cluster_name, 'NodeGroups': [], 'Departments': [], 'Projects': []}
+            cluster_data = {'Cluster': cluster_name, 'NodeGroups': [], 'Departments': []}
 
             # Fetch node groups using list_nodegroups_by_cluster_uid
             nodegroups = list_nodegroups_by_cluster_uid(cluster_uid, client)
@@ -206,10 +206,7 @@ def fetch_mmai_topology(client):
             
             if not nodegroups:
                 logging.error(f"Failed to fetch node groups for cluster {cluster_uid}.")
-                return {
-                    "error": f"Failed to fetch node groups for cluster {cluster_uid}.",
-                    "suggestion": "Please verify that the node groups endpoint is functioning correctly."
-                }
+                continue
 
             for nodegroup in nodegroups:
                 if not isinstance(nodegroup, dict):
@@ -231,10 +228,7 @@ def fetch_mmai_topology(client):
             
             if not departments:
                 logging.error(f"Failed to fetch departments for cluster {cluster_uid}.")
-                return {
-                    "error": f"Failed to fetch departments for cluster {cluster_uid}.",
-                    "suggestion": "Please verify that the departments endpoint is functioning correctly."
-                }
+                continue
 
             for department in departments:
                 if not isinstance(department, dict):
@@ -244,32 +238,31 @@ def fetch_mmai_topology(client):
                 logging.info(f"Processing department {department['name']}")
                 department_data = {'Department': department['name'], 'Projects': []}
 
-                # Fetch projects for the entire cluster using list_projects_by_cluster_uid
+                # Fetch projects for the entire cluster and associate them with the correct department
                 projects = list_projects_by_cluster_uid(cluster_uid, client)
                 logging.info(f"Projects fetched for cluster {cluster_uid}: {projects}")
                 
                 if not projects:
                     logging.error(f"Failed to fetch projects for cluster {cluster_uid}.")
-                    return {
-                        "error": f"Failed to fetch projects for cluster {cluster_uid}.",
-                        "suggestion": "Please verify that the projects endpoint is functioning correctly."
-                    }
+                    continue
 
+                # Filter projects based on the department they belong to
                 for project in projects:
                     if not isinstance(project, dict):
                         logging.error(f"Expected dictionary for project, got {type(project)}: {project}")
                         continue
 
-                    logging.info(f"Processing project {project['name']}")
-                    project_data = {
-                        'Project': project['name'],
-                        'PriorityClass': project['priorityClass'],
-                        'Reservations': project['reservations'],
-                        'UsedQuotas': project['usedQuotas'],
-                        'NumberOfAdmittedWorkloads': project['numberOfAdmittedWorkloads'],
-                        'NumberOfPendingWorkloads': project['numberOfPendingWorkloads'],
-                    }
-                    department_data['Projects'].append(project_data)
+                    if project['department'] == department['name']:  # Match project to department
+                        logging.info(f"Adding project {project['name']} to department {department['name']}")
+                        project_data = {
+                            'Project': project['name'],
+                            'PriorityClass': project['priorityClass'],
+                            'Reservations': project['reservations'],
+                            'UsedQuotas': project['usedQuotas'],
+                            'NumberOfAdmittedWorkloads': project['numberOfAdmittedWorkloads'],
+                            'NumberOfPendingWorkloads': project['numberOfPendingWorkloads'],
+                        }
+                        department_data['Projects'].append(project_data)
                 
                 cluster_data['Departments'].append(department_data)
 
@@ -284,6 +277,7 @@ def fetch_mmai_topology(client):
             "error": "Unexpected error occurred.",
             "suggestion": f"An unexpected error occurred: {str(e)}. Please check your environment and try again."
         }
+
 
 def print_topology_data(topology_data):
     """

@@ -42,7 +42,7 @@ def list_billing(args, client):
             for key, value in flattened_item.items():
                 output_lines.append(f"{key}: {value}")
 
-        return "\n".join(output_lines)
+        print("\n".join(output_lines))
 
     except Exception as e:
-        return f"Error: {str(e)}"
+        print(f"Error: {str(e)}")

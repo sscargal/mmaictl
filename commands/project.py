@@ -18,16 +18,17 @@ def setup_parser(subparsers):
     add_parser.set_defaults(func=add_project)
 
     # project list
-    list_parser = project_subparsers.add_parser('list', help='List all projects in a cluster')
+    list_parser = project_subparsers.add_parser('list', help='List project names in a cluster or all clusters')
     list_parser.add_argument('--cluster', help='Cluster name or UID (optional, will auto-select if only one cluster exists)')
-    list_parser.add_argument('--output', '-o', choices=['text', 'json'], default='text', help='Output format (default: text)')
-    list_parser.add_argument('--filter', help='Comma-separated list of fields to display (e.g., "name,description")')
+    list_parser.add_argument('--output', '-o', choices=['default', 'dot', 'json'], default='default', help='Output format (default, dot, or json)')
     list_parser.set_defaults(func=list_projects)
 
     # project get
-    get_parser = project_subparsers.add_parser('get', help='Get a project by name')
-    get_parser.add_argument('name', help='Name of the project')
-    get_parser.set_defaults(func=get_project)
+    get_parser = project_subparsers.add_parser('get', help='Get detailed information for projects in a cluster')
+    get_parser.add_argument('--cluster', help='Cluster name or UID (optional, will auto-select if only one cluster exists)')
+    get_parser.add_argument('--output', choices=['text', 'json'], default='text', help='Output format (text or json)')
+    get_parser.add_argument('--filter', help='Comma-separated list of fields to display (e.g., "name,description")')
+    get_parser.set_defaults(func=get_projects)
 
     # project update
     update_parser = project_subparsers.add_parser('update', help='Update a project by name')
@@ -52,7 +53,67 @@ def add_project(args, client):
     return result
 
 def list_projects(args, client):
-    """Lists all projects in a cluster or from all clusters if no cluster is specified."""
+    """Lists the names of projects in a cluster or from all clusters."""
+    try:
+        # If no cluster is specified, fetch all clusters
+        if not args.cluster:
+            clusters = client.get("clusters")
+            if not clusters or not isinstance(clusters, list):
+                logging.error("No clusters found.")
+                return None
+        else:
+            # Fetch only the specified cluster
+            cluster_uid = get_cluster_uid(client, args.cluster)
+            clusters = [{"name": args.cluster, "uid": cluster_uid}]
+
+        project_dict = {}
+
+        for cluster in clusters:
+            cluster_name = cluster.get('name')
+            cluster_uid = cluster.get('uid')
+
+            # Fetch projects for this cluster
+            projects = client.get(f"clusters/{cluster_uid}/projects")
+            if not projects:
+                logging.warning(f"No projects found for cluster {cluster_name}.")
+                continue
+
+            # Only extract project names
+            project_dict[cluster_name] = [project['name'] for project in projects]
+
+        if not project_dict:
+            print("No projects found.")
+            return
+
+        # Output format handling
+        if args.output == 'json':
+            # JSON format
+            print(json.dumps(project_dict, indent=4))
+        
+        elif args.output == 'dot':
+            # Dot notation format
+            output_lines = []
+            for cluster_name, projects in project_dict.items():
+                for i, project in enumerate(projects):
+                    output_lines.append(f"cluster[{cluster_name}].project[{i}].name: {project}")
+            print("\n".join(output_lines))
+        
+        else:
+            # Default format with cluster name as a header
+            output_lines = []
+            for cluster_name, projects in project_dict.items():
+                output_lines.append(f"[{cluster_name}]")
+                for project in projects:
+                    output_lines.append(f"{project}")
+                output_lines.append("")  # Add blank line after each cluster
+            print("\n".join(output_lines))
+
+    except Exception as e:
+        logging.error(f"Failed to list projects: {e}")
+        return None
+
+def get_projects(args, client):
+    """Gets properties for each project in a cluster or from all clusters."""
     try:
         # If no cluster is specified, fetch all clusters
         if not args.cluster:
@@ -82,28 +143,40 @@ def list_projects(args, client):
                 filters = args.filter.split(',')
                 projects = filter_json(projects, filters)
 
-            # Flatten each project and prefix with the cluster name
+            # Add project details to the list under their respective cluster
             for i, project in enumerate(projects):
-                flattened_project = flatten_json(project, parent_key=f"cluster[{cluster_name}].project[{i}]")
-                all_projects.append(flattened_project)
+                all_projects.append({
+                    'cluster': cluster_name,
+                    'project': flatten_json(project, parent_key=f"cluster[{cluster_name}].project[{i}]")
+                })
 
-        # If JSON output is requested
+        if not all_projects:
+            print("No project details found.")
+            return
+
+        # Output format handling
         if args.output == 'json':
-            return json.dumps(all_projects, indent=4)
+            # JSON format
+            project_output = {}
+            for project in all_projects:
+                cluster_name = project['cluster']
+                if cluster_name not in project_output:
+                    project_output[cluster_name] = []
+                project_output[cluster_name].append(project['project'])
+            print(json.dumps(project_output, indent=4))
 
-        # Prepare text output
-        output_lines = []
-        for project in all_projects:
-            for key, value in project.items():
-                output_lines.append(f"{key}: {value}")
-
-        return "\n".join(output_lines)
+        else:
+            # Text output
+            output_lines = []
+            for project in all_projects:
+                for key, value in project['project'].items():
+                    output_lines.append(f"{key}: {value}")
+            print("\n".join(output_lines))
 
     except Exception as e:
-        logging.error(f"Failed to fetch projects: {e}")
+        logging.error(f"Failed to get project details: {e}")
         return None
 
-    
 def list_projects_by_cluster_uid(cluster_uid, client):
     """
     Fetches the list of projects for a given cluster UID using the provided API client.
@@ -129,12 +202,6 @@ def list_projects_by_cluster_uid(cluster_uid, client):
     except Exception as e:
         logging.error(f"Failed to fetch projects for cluster {cluster_uid}: {e}")
         return None
-
-
-def get_project(args, client):
-    """Retrieves a specific project by name."""
-    project = client.get(f"projects/{args.name}")
-    return project
 
 def update_project(args, client):
     """Updates a specific project."""
